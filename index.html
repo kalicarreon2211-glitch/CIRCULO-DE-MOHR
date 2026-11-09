@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calculadora del círculo de Mohr</title>
+<style>
+:root {
+  --site-primary: #dce8f2;
+  --site-on-primary: #17212b;
+  --site-secondary: #eeeeee;
+  --site-on-secondary: #222222;
+  --site-background: #ffffff;
+  --site-on-background: #202020;
+  --site-font-body: Arial, Helvetica, sans-serif;
+  --site-font-heading: Arial, Helvetica, sans-serif;
+  --site-heading-scale: 1;
+  --site-spacing-scale: 1;
+  --site-radius-scale: 1;
+  --site-decoration-opacity: 1;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: light-dark(#fff,#fff); color: #202020; font-family: Arial, Helvetica, sans-serif; }
+#app { min-height: 100vh; width: 100%; background-color: var(--site-background); color: var(--site-on-background); padding: 24px; }
+main { max-width: 900px; margin: 0 auto; }
+h1 { font-size: calc(27px * var(--site-heading-scale)); margin: 0 0 8px; }
+p { line-height: 1.5; }
+.intro { margin-top: 0; color: #555; }
+section { border: 1px solid #ccc; padding: 16px; margin: 18px 0; border-radius: calc(5px * var(--site-radius-scale)); }
+h2 { font-size: 19px; margin: 0 0 14px; }
+.inputs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+label { display: block; font-size: 14px; margin-bottom: 5px; }
+input { width: 100%; padding: 9px; border: 1px solid #999; border-radius: 3px; font-size: 16px; background: #fff; color: #222; }
+button { margin-top: 14px; padding: 10px 18px; border: 1px solid #777; border-radius: 3px; background: var(--site-primary); color: var(--site-on-primary); font-size: 15px; cursor: pointer; }
+button:hover { background: #cbd9e5; }
+.results { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.result { padding: 10px; background: #f4f4f4; border: 1px solid #ddd; }
+.result strong { display: block; margin-bottom: 5px; font-size: 13px; font-weight: normal; color: #555; }
+.result span { font-size: 18px; }
+canvas { display: block; width: 100%; max-width: 650px; height: 360px; margin: 0 auto; }
+#procedure p { margin: 8px 0; }
+.note { font-size: 13px; color: #555; }
+@media (max-width: 600px) { #app { padding: 16px; } .inputs { grid-template-columns: 1fr; } .results { grid-template-columns: 1fr 1fr; } canvas { height: 280px; } }
+</style>
+</head>
+<body>
+<div id="app">
+<main>
+  <h1>Calculadora del círculo de Mohr</h1>
+  <p class="intro">Ingresa los esfuerzos para calcular el círculo de Mohr en un estado plano de esfuerzos.</p>
+  <section>
+    <h2>Datos de entrada</h2>
+    <div class="inputs">
+      <div><label for="sx">Esfuerzo normal en X (σx), MPa</label><input id="sx" type="number" step="any" value="80"></div>
+      <div><label for="sy">Esfuerzo normal en Y (σy), MPa</label><input id="sy" type="number" step="any" value="20"></div>
+      <div><label for="txy">Esfuerzo cortante (τxy), MPa</label><input id="txy" type="number" step="any" value="30"></div>
+    </div>
+    <button id="calculate">Calcular</button>
+    <p class="note">Usa las mismas unidades para los tres esfuerzos.</p>
+  </section>
+  <section>
+    <h2>Resultados</h2>
+    <div class="results">
+      <div class="result"><strong>Centro (C)</strong><span id="center">50.00 MPa</span></div>
+      <div class="result"><strong>Radio (R)</strong><span id="radius">42.43 MPa</span></div>
+      <div class="result"><strong>Esfuerzo principal mayor (σ1)</strong><span id="s1">92.43 MPa</span></div>
+      <div class="result"><strong>Esfuerzo principal menor (σ2)</strong><span id="s2">7.57 MPa</span></div>
+      <div class="result"><strong>Cortante máximo (τmáx)</strong><span id="taumax">42.43 MPa</span></div>
+      <div class="result"><strong>Ángulo principal (θp)</strong><span id="angle">22.50°</span></div>
+    </div>
+  </section>
+  <section>
+    <h2>Gráfica del círculo de Mohr</h2>
+    <canvas id="plot" width="700" height="380" aria-label="Gráfica del círculo de Mohr"></canvas>
+  </section>
+  <section id="procedure">
+    <h2>Procedimiento</h2>
+    <div id="steps"></div>
+  </section>
+</main>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const fmt = n => Number(n).toFixed(2);
+let current = null;
+function calculate() {
+  const sx = Number($("sx").value), sy = Number($("sy").value), t = Number($("txy").value);
+  if (![sx, sy, t].every(Number.isFinite)) return;
+  const c = (sx + sy) / 2;
+  const dx = (sx - sy) / 2;
+  const r = Math.sqrt(dx * dx + t * t);
+  const s1 = c + r, s2 = c - r;
+  const theta = 0.5 * Math.atan2(2 * t, sx - sy) * 180 / Math.PI;
+  current = {sx, sy, t, c, dx, r, s1, s2, theta};
+  $("center").textContent = fmt(c) + " MPa";
+  $("radius").textContent = fmt(r) + " MPa";
+  $("s1").textContent = fmt(s1) + " MPa";
+  $("s2").textContent = fmt(s2) + " MPa";
+  $("taumax").textContent = fmt(r) + " MPa";
+  $("angle").textContent = fmt(theta) + "°";
+  $("steps").innerHTML = `
+    <p><b>1. Centro del círculo:</b> C = (σx + σy) / 2 = (${fmt(sx)} + ${fmt(sy)}) / 2 = <b>${fmt(c)} MPa</b>.</p>
+    <p><b>2. Radio:</b> R = √[((σx − σy) / 2)² + τxy²] = √[(${fmt(dx)})² + (${fmt(t)})²] = <b>${fmt(r)} MPa</b>.</p>
+    <p><b>3. Esfuerzos principales:</b> σ1 = C + R = <b>${fmt(s1)} MPa</b>; σ2 = C − R = <b>${fmt(s2)} MPa</b>.</p>
+    <p><b>4. Cortante máximo:</b> τmáx = R = <b>${fmt(r)} MPa</b>.</p>
+    <p><b>5. Ángulo principal:</b> θp = ½ atan2(2τxy, σx − σy) = <b>${fmt(theta)}°</b>.</p>
+    <p class="note">El ángulo se mide desde el plano original; la orientación física del elemento se relaciona con el doble del ángulo en el círculo.</p>`;
+  draw();
+}
+function draw(d) {
+  const c=$("plot"), ctx=c.getContext("2d"), w=c.width, h=c.height;
+  ctx.clearRect(0,0,w,h);
+  const pad={l:65,r:30,t:28,b:48};
+  const minX=Math.min(d.s2,d.sx,d.sy,d.C-d.R)-Math.max(d.R*.25,5);
+  const maxX=Math.max(d.s1,d.sx,d.sy,d.C+d.R)+Math.max(d.R*.25,5);
+  const maxY=Math.max(d.R,Math.abs(d.tau))*1.35+1;
+  const X=v=>pad.l+(v-minX)/(maxX-minX)*(w-pad.l-pad.r);
+  const Y=v=>pad.t+(maxY-v)/(2*maxY)*(h-pad.t-pad.b);
+  ctx.strokeStyle=getComputedStyle(document.body).color; ctx.globalAlpha=.22; ctx.lineWidth=1;
+  for(let i=0;i<=6;i++){let x=pad.l+i*(w-pad.l-pad.r)/6;ctx.beginPath();ctx.moveTo(x,pad.t);ctx.lineTo(x,h-pad.b);ctx.stroke();}
+  for(let i=0;i<=6;i++){let y=pad.t+i*(h-pad.t-pad.b)/6;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(w-pad.r,y);ctx.stroke();}
+  ctx.globalAlpha=1; ctx.strokeStyle="#71858d";ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(pad.l,Y(0));ctx.lineTo(w-pad.r,Y(0));ctx.moveTo(X(0),pad.t);ctx.lineTo(X(0),h-pad.b);ctx.stroke();
+  ctx.fillStyle=getComputedStyle(document.body).color;ctx.font="12px Segoe UI";ctx.textAlign="center";
+  for(let i=0;i<=6;i++){let v=minX+i*(maxX-minX)/6;ctx.fillText(v.toFixed(1),X(v),h-pad.b+19);}
+  ctx.textAlign="right";for(let i=0;i<=6;i++){let v=maxY-i*2*maxY/6;ctx.fillText(v.toFixed(1),pad.l-8,Y(v)+4);}
+  ctx.textAlign="center";ctx.fillText("σ ("+d.unit+")",(pad.l+w-pad.r)/2,h-7);
+  ctx.save();ctx.translate(16,(pad.t+h-pad.b)/2);ctx.rotate(-Math.PI/2);ctx.fillText("τ ("+d.unit+")",0,0);ctx.restore();
+  ctx.strokeStyle="#32866b";ctx.lineWidth=3;ctx.beginPath();ctx.arc(X(d.C),Y(0),Math.abs(X(d.C+d.R)-X(d.C)),0,Math.PI*2);ctx.stroke();
+  function point(x,y,color,label,dx,dy){ctx.fillStyle=color;ctx.beginPath();ctx.arc(X(x),Y(y),6,0,Math.PI*2);ctx.fill();ctx.font="bold 13px Segoe UI";ctx.textAlign="left";ctx.fillText(label,X(x)+dx,Y(y)+dy);}
+  point(d.sx,d.tau,"#247d9e","X",9,-10);point(d.sy,-d.tau,"#d18a36","Y",9,17);
+  point(d.s1,0,"#32866b","σ₁",7,-12);point(d.s2,0,"#32866b","σ₂",7,-12);
+  ctx.fillStyle="#32866b";ctx.beginPath();ctx.arc(X(d.C),Y(0),4,0,Math.PI*2);ctx.fill();
+}
+$("calc").addEventListener("click",calculate);
+$("example").addEventListener("click",()=>{$("sx").value=80;$("sy").value=20;$("txy").value=30;$("unit").value="MPa";calculate();});
+["sx","sy","txy","unit"].forEach(id=>$(id).addEventListener("keydown",e=>{if(e.key==="Enter")calculate();}));
+calculate();
+</script>
+</body>
+</html>
