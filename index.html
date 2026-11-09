@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Círculo de Mohr</title>
+<style>
+:root {
+  --site-primary: #333f46;
+  --site-on-primary: #ffffff;
+  --site-secondary: #eeeeee;
+  --site-on-secondary: #333f46;
+  --site-background: #ffffff;
+  --site-on-background: #252b2f;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Arial, sans-serif; background: #fff; color: #252b2f; }
+#app { min-height: 100vh; width: 100%; }
+header { padding: 20px max(5vw, 20px); border-bottom: 1px solid #e5e5e5; background: #fff; }
+.header-inner { max-width: 1080px; margin: auto; }
+.kicker { font-size: 11px; color: #777; letter-spacing: .5px; text-transform: uppercase; }
+h1 { font-size: 26px; margin: 6px 0; font-weight: 700; }
+header p { margin: 0; color: #666; line-height: 1.45; }
+main { max-width: 1080px; margin: 20px auto 35px; padding: 0 20px; }
+.intro { margin: 0 0 16px; line-height: 1.5; color: #555; }
+.layout { display: grid; grid-template-columns: 270px minmax(0,1fr); gap: 14px; align-items: start; }
+.panel { background: #fff; border: 1px solid #dedede; border-radius: 4px; padding: 15px; }
+h2 { font-size: 16px; margin: 0 0 12px; color: #303a40; }
+.field { margin: 11px 0; }
+label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; }
+input { width: 100%; padding: 9px; border: 1px solid #ccc; border-radius: 3px; background: #fff; color: #222; font: inherit; }
+input:focus { outline: 1px solid #555; border-color: #555; }
+.hint { color: #777; font-size: 11px; margin-top: 5px; line-height: 1.4; }
+button { border: 0; border-radius: 3px; padding: 10px 13px; font: inherit; font-weight: 600; cursor: pointer; }
+.primary { width: 100%; background: #333f46; color: #fff; margin-top: 8px; }
+.primary:hover { background: #202a30; }
+.secondary { width: 100%; margin-top: 8px; background: #eee; color: #333; }
+.results { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 7px; margin-bottom: 15px; }
+.metric { background: #fafafa; border: 1px solid #e5e5e5; border-radius: 3px; padding: 10px; }
+.metric small { display: block; color: #666; font-size: 11px; margin-bottom: 5px; }
+.metric strong { font-size: 18px; color: #26343a; overflow-wrap: anywhere; }
+.metric span { font-size: 11px; color: #777; }
+.graph-wrap { background: #fff; border: 1px solid #ddd; border-radius: 3px; padding: 6px; }
+canvas { width: 100%; height: 340px; display: block; }
+.legend { display: flex; gap: 12px; flex-wrap: wrap; padding: 7px 6px 2px; font-size: 11px; color: #555; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+.steps { margin-top: 14px; }
+.step { border-left: 2px solid #aaa; padding: 3px 0 4px 11px; margin: 12px 0; }
+.step b { display: block; font-size: 13px; margin-bottom: 4px; }
+.formula { font-family: Georgia, serif; font-size: 14px; line-height: 1.6; color: #3f4c52; overflow-wrap: anywhere; }
+.note { background: #f3f3f3; color: #555; padding: 10px; border-radius: 3px; font-size: 11px; line-height: 1.45; margin-top: 13px; }
+.footer { text-align: center; color: #888; font-size: 11px; padding: 20px 10px; }
+@media (max-width: 800px) {
+  .layout { grid-template-columns: 1fr; }
+  .results { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  h1 { font-size: 24px; }
+  canvas { height: 290px; }
+}
+@media (max-width: 420px) {
+  .results { grid-template-columns: 1fr 1fr; }
+  .metric strong { font-size: 16px; }
+  main { padding: 0 12px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+<header><div class="header-inner"><div class="kicker">Mecánica de sólidos</div><h1>Círculo de Mohr</h1><p>Calculadora para analizar esfuerzos.</p></div></header>
+<main>
+<p class="intro">Ingresa los esfuerzos requeridos y presiona <b>Calcular</b>.</p>
+<div class="layout">
+<section class="panel">
+<h2>1. Datos de entrada</h2>
+<div class="field"><label for="sx">Esfuerzo normal en X (σx)</label><input id="sx" type="number" step="any" value="80"><div class="hint">Usa valores positivos para tensión y negativos para compresión.</div></div>
+<div class="field"><label for="sy">Esfuerzo normal en Y (σy)</label><input id="sy" type="number" step="any" value="20"></div>
+<div class="field"><label for="txy">Esfuerzo cortante (τxy)</label><input id="txy" type="number" step="any" value="30"></div>
+<div class="hint" style="margin:10px 0 14px">Todos los esfuerzos se ingresan y muestran en MPa.</div>
+<button class="primary" id="calc">Calcular círculo</button>
+<button class="secondary" id="example" style="width:100%;margin-top:9px">Restablecer ejemplo</button>
+<div class="note"><b>Convención:</b> se toma τxy positivo cuando se ingresa con signo positivo. El ángulo se mide desde el eje x en sentido antihorario.</div>
+</section>
+<section>
+<div class="panel">
+<h2>2. Resultados</h2>
+<div class="results" id="results">
+<div class="metric"><small>Esfuerzo principal mayor (σ₁)</small><strong id="s1">—</strong><span id="u1">MPa</span></div>
+<div class="metric"><small>Esfuerzo principal menor (σ₂)</small><strong id="s2">—</strong><span id="u2">MPa</span></div>
+<div class="metric"><small>Cortante máximo (τmáx)</small><strong id="tm">—</strong><span class="unit">MPa</span></div>
+<div class="metric"><small>Centro (C)</small><strong id="center">—</strong><span class="unit">MPa</span></div>
+<div class="metric"><small>Radio (R)</small><strong id="radius">—</strong><span class="unit">MPa</span></div>
+<div class="metric"><small>Ángulo principal (θp)</small><strong id="angle">—</strong><span>grados</span></div>
+</div>
+<h2 style="margin-top:20px">3. Gráfica del círculo</h2>
+<div class="graph-wrap"><canvas id="plot" width="850" height="410" aria-label="Gráfica del círculo de Mohr"></canvas><div class="legend"><span><i class="dot" style="background:#247d9e"></i>Punto X (σx, τxy)</span><span><i class="dot" style="background:#d18a36"></i>Punto Y (σy, −τxy)</span><span><i class="dot" style="background:#32866b"></i>Esfuerzos principales</span></div></div>
+</div>
+<div class="panel steps">
+<h2>4. Procedimiento</h2>
+<div id="procedure"><p class="hint">Los pasos del cálculo aparecerán aquí después de presionar el botón.</p></div>
+</div>
+</section>
+</div>
+<div class="footer">3AM1 IPN · Círculo de Mohr · Mecánica de Sólidos</div>
+</main>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+let last = null;
+function fmt(n) { return Number(n).toFixed(3); }
+function calculate() {
+  const sx = Number($("sx").value), sy = Number($("sy").value), tau = Number($("txy").value), unit = "MPa";
+  if (![sx,sy,tau].every(Number.isFinite) || [$("sx").value,$("sy").value,$("txy").value].some(v=>v.trim()==="")) { alert("Por favor, completa los tres valores."); return; }
+  const C = (sx+sy)/2;
+  const R = Math.sqrt(Math.pow((sx-sy)/2,2)+tau*tau);
+  const s1 = C+R, s2 = C-R;
+  const theta = 0.5*Math.atan2(2*tau,sx-sy)*180/Math.PI;
+  const tmax = R;
+  last = {sx,sy,tau,C,R,s1,s2,theta,tmax,unit};
+  $("s1").textContent=fmt(s1); $("s2").textContent=fmt(s2); $("tm").textContent=fmt(tmax);
+  $("center").textContent=fmt(C); $("radius").textContent=fmt(R); $("angle").textContent=fmt(theta)+"°";
+  document.querySelectorAll(".unit").forEach(el=>el.textContent=unit);
+  $("u1").textContent=unit; $("u2").textContent=unit;
+  const theta2 = theta+90;
+  $("procedure").innerHTML = `
+    <div class="step"><b>Paso 1. Calcular el centro</b><div class="formula">σprom = (σx + σy) / 2 = (${fmt(sx)} + ${fmt(sy)}) / 2 = ${fmt(C)} ${unit}</div></div>
+    <div class="step"><b>Paso 2. Calcular el radio</b><div class="formula">R = √[((σx − σy)/2)² + τxy²]<br>R = √[((${fmt(sx)} − ${fmt(sy)})/2)² + (${fmt(tau)})²] = ${fmt(R)} ${unit}</div></div>
+    <div class="step"><b>Paso 3. Esfuerzos principales</b><div class="formula">σ₁ = C + R = ${fmt(C)} + ${fmt(R)} = ${fmt(s1)} ${unit}<br>σ₂ = C − R = ${fmt(C)} − ${fmt(R)} = ${fmt(s2)} ${unit}</div></div>
+    <div class="step"><b>Paso 4. Esfuerzo cortante máximo</b><div class="formula">τmáx = R = ${fmt(tmax)} ${unit}</div></div>
+    <div class="step"><b>Paso 5. Ángulo principal</b><div class="formula">θp = ½ atan2(2τxy, σx − σy)<br>θp = ${fmt(theta)}°</div><div class="hint">El otro plano principal está a 90°: ${fmt(theta2)}°. El ángulo puede expresarse con otra orientación equivalente.</div></div>`;
+  draw(last);
+}
+function draw(d) {
+  const c=$("plot"), ctx=c.getContext("2d"), w=c.width, h=c.height;
+  ctx.clearRect(0,0,w,h);
+  const pad={l:65,r:30,t:28,b:48};
+  const minX=Math.min(d.s2,d.sx,d.sy,d.C-d.R)-Math.max(d.R*.25,5);
+  const maxX=Math.max(d.s1,d.sx,d.sy,d.C+d.R)+Math.max(d.R*.25,5);
+  const maxY=Math.max(d.R,Math.abs(d.tau))*1.35+1;
+  const X=v=>pad.l+(v-minX)/(maxX-minX)*(w-pad.l-pad.r);
+  const Y=v=>pad.t+(maxY-v)/(2*maxY)*(h-pad.t-pad.b);
+  ctx.strokeStyle=getComputedStyle(document.body).color; ctx.globalAlpha=.22; ctx.lineWidth=1;
+  for(let i=0;i<=6;i++){let x=pad.l+i*(w-pad.l-pad.r)/6;ctx.beginPath();ctx.moveTo(x,pad.t);ctx.lineTo(x,h-pad.b);ctx.stroke();}
+  for(let i=0;i<=6;i++){let y=pad.t+i*(h-pad.t-pad.b)/6;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(w-pad.r,y);ctx.stroke();}
+  ctx.globalAlpha=1; ctx.strokeStyle="#71858d";ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(pad.l,Y(0));ctx.lineTo(w-pad.r,Y(0));ctx.moveTo(X(0),pad.t);ctx.lineTo(X(0),h-pad.b);ctx.stroke();
+  ctx.fillStyle=getComputedStyle(document.body).color;ctx.font="12px Segoe UI";ctx.textAlign="center";
+  for(let i=0;i<=6;i++){let v=minX+i*(maxX-minX)/6;ctx.fillText(v.toFixed(1),X(v),h-pad.b+19);}
+  ctx.textAlign="right";for(let i=0;i<=6;i++){let v=maxY-i*2*maxY/6;ctx.fillText(v.toFixed(1),pad.l-8,Y(v)+4);}
+  ctx.textAlign="center";ctx.fillText("σ ("+d.unit+")",(pad.l+w-pad.r)/2,h-7);
+  ctx.save();ctx.translate(16,(pad.t+h-pad.b)/2);ctx.rotate(-Math.PI/2);ctx.fillText("τ ("+d.unit+")",0,0);ctx.restore();
+  ctx.strokeStyle="#32866b";ctx.lineWidth=3;ctx.beginPath();ctx.arc(X(d.C),Y(0),Math.abs(X(d.C+d.R)-X(d.C)),0,Math.PI*2);ctx.stroke();
+  function point(x,y,color,label,dx,dy){ctx.fillStyle=color;ctx.beginPath();ctx.arc(X(x),Y(y),6,0,Math.PI*2);ctx.fill();ctx.font="bold 13px Segoe UI";ctx.textAlign="left";ctx.fillText(label,X(x)+dx,Y(y)+dy);}
+  point(d.sx,d.tau,"#247d9e","X",9,-10);point(d.sy,-d.tau,"#d18a36","Y",9,17);
+  point(d.s1,0,"#32866b","σ₁",7,-12);point(d.s2,0,"#32866b","σ₂",7,-12);
+  ctx.fillStyle="#32866b";ctx.beginPath();ctx.arc(X(d.C),Y(0),4,0,Math.PI*2);ctx.fill();
+}
+$("calc").addEventListener("click",calculate);
+$("example").addEventListener("click",()=>{$("sx").value=80;$("sy").value=20;$("txy").value=30;calculate();});
+["sx","sy","txy"].forEach(id=>$(id).addEventListener("keydown",e=>{if(e.key==="Enter")calculate();}));
+calculate();
+</script>
+</body>
+</html>
